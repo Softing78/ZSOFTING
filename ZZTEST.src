@@ -1,0 +1,92 @@
+#<AdxTL>@(#)0.0.0.0 $Revision$
+###################################################################
+## ZSOFTING - Bibiliothèque des fonctions SOFTING                ##
+## ------------------------------------------------------------- ##
+## Version      5.12                                             ##
+## ------------------------------------------------------------- ##
+## Date        Auteur Observations                               ##
+## 02/12/2010  MBA    Création                                   ##
+## 07/12/2010  JPB    Modification                               ##
+## 10/08/2011  PDE    Fct AUTORIS_ACCES                          ##
+## 05/09/2011  JPB    Fct CAL_STA                                ##
+## 13/03/2012  JPB    Formattage quantité/unité                  ##
+## 06/06/2012  JPB    Modif [STA] en [ZSTA]                      ##
+## 05/07/2012  LOG    Fct COEFF_QTEFAC                           ##
+## 27/07/2012  PDE    Purge tables de travail                    ##
+## 07/11/2012  JPB    Calcul des previsions stats                ##
+## 21/11/2012  JPB    Fonction MAJ COlonne                       ##
+## 09/01/2013  JPB    Fonction lecture designation table diverse ##
+## 19/03/2013  PDE    Fonction Test apres création d'un fichier  ##
+###################################################################
+## La dernière version de ce traitement doit etre dans le dossier##
+## X3 SOFTING. Il convient de le copier dans les dossiers de tous##
+## nos clients. Merci d'informer l'équipe de développement en cas##
+## MAJ ou d'évolution de ce traitement.                          ##
+###################################################################
+
+$ACTION
+Case ACTION
+    When "EXEC"
+        If [V]GACTION="XRAZTABLE" & [V]GFONCTION="XRAZTABLE"
+            # Batch purge tables de travail
+            # A besoin du code activité XRZ
+            #          de la fonction, de l'action et de la tâche XRAZTABLE
+            Call RAZ_TABLES
+        Endif
+Endcase
+Return
+
+##############################################
+# Purge tables de travail
+##############################################
+Subprog RAZ_TABLES
+If !GSERVEUR: Call OUVRE_TRACE("RAZ contenu tables") From LECFIC: Endif
+Call RAZTAB("ALISTER",0,1):  # Table Requêteur
+Call RAZTAB("AREPORTM",0,1): # Table Impressions maj tables
+If !GSERVEUR: Call FERME_TRACE From LECFIC: Endif
+End
+
+##############################################
+# Suppression contenu fichier
+# En entrée: RF_CODFIC Nom table
+#            RF_DELAI  par rapport à CREDAT
+#                      Nombre de jour gardé
+#            RF_TRACE  <>0 avec trace
+##############################################
+Subprog RAZTAB(RF_CODFIC,RF_DELAI,RF_TRACE)
+Value Char     RF_CODFIC
+Value Shortint RF_DELAI
+Value Shortint RF_TRACE
+Local Char     RF_MESS(200)
+Local Shortint RF_OFIC
+If [L]RF_CODFIC<>""
+    [L]RF_OFIC=0
+    [L]RF_MESS="RAZ Table"-[L]RF_CODFIC
+    If filinfo(filpath("FIL",[L]RF_CODFIC,"fde",[S]nomap(0)),0)<0
+        #
+        # 124,124: Table inexistante
+        If [L]RF_TRACE: Call ECR_TRACE([L]RF_MESS+":"-mess(124,124,1),0) From GESECRAN: Endif
+    Else
+        If !clalev([F:ZRF_])
+            Local File = [L]RF_CODFIC [F:ZRF_]
+            [L]RF_OFIC=1
+        Endif
+        Trbegin [F:ZRF_]
+        If [L]RF_DELAI>0 & dim([F:ZRF_]CREDAT)>=0
+            # 772,7 : Date purge
+            [L]RF_MESS-="("+mess(7,772,1)-"<="+format$([V]GFMD,date$-[L]RF_DELAI)+")"
+            Delete [F:ZRF_] Where [F:ZRF_]CREDAT <= date$-[L]RF_DELAI
+        Else
+            Delete [F:ZRF_] Where 1=1
+        Endif
+        If ![S]fstat
+            Commit
+            If [L]RF_TRACE: Call ECR_TRACE([L]RF_MESS+": OK",0) From GESECRAN: Endif
+        Else
+            Rollback
+            If [L]RF_TRACE: Call ECR_TRACE([L]RF_MESS+": Erreur (Fstat="+num$([S]fstat)+")",1) From GESECRAN: Endif
+        Endif
+    Endif
+Endif
+End
+
